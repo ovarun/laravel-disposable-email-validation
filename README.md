@@ -10,7 +10,7 @@ Supports **blocklist** (domains to block) and **allowlist** (domains to allow), 
 Install via Composer:
 
 ```bash
-composer require your-vendor/laravel-disposable-email
+composer require ovarun/laravel-disposable-email
 ```
 
 The package uses **Laravel Package Auto-Discovery**, so you don’t need to register the service provider manually.
@@ -79,7 +79,7 @@ storage/app/disposable-email-blocklist.json
 Use the built-in rule in your `FormRequest` or controller:
 
 ```php
-use YourVendor\DisposableEmail\Rules\NotDisposableEmail;
+use Ovarun\DisposableEmail\Rules\NotDisposableEmail;
 
 $request->validate([
     'email' => ['required', 'email', new NotDisposableEmail],
@@ -99,7 +99,7 @@ Disposable or blocked email addresses are not allowed.
 You can also use the validator class directly:
 
 ```php
-use YourVendor\DisposableEmail\DisposableEmailValidator;
+use Ovarun\DisposableEmail\DisposableEmailValidator;
 
 $validator = new DisposableEmailValidator();
 
@@ -127,7 +127,7 @@ protected function schedule(Schedule $schedule)
 
 1. Install package:
    ```bash
-   composer require your-vendor/laravel-disposable-email
+   composer require ovarun/laravel-disposable-email
    ```
 
 2. Publish config (optional):
