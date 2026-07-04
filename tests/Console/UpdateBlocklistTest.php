@@ -9,6 +9,13 @@ use Ovarun\DisposableEmail\Tests\TestCase;
 
 class UpdateBlocklistTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Storage::disk('local')->deleteDirectory('disposable-email');
+
+        parent::tearDown();
+    }
+
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
@@ -56,5 +63,42 @@ class UpdateBlocklistTest extends TestCase
         ]);
 
         $this->artisan('disposable-email:update')->assertExitCode(1);
+    }
+
+    public function test_it_parses_and_syncs_real_conf_files_from_the_repository(): void
+    {
+        $blocklist = file_get_contents(__DIR__.'/../../disposable_email_blocklist.conf');
+        $allowlist = file_get_contents(__DIR__.'/../../allowlist.conf');
+
+        $this->assertIsString($blocklist);
+        $this->assertIsString($allowlist);
+
+        Http::fake([
+            config('disposable-email.sync.blocklist_url') => Http::response($blocklist),
+            config('disposable-email.sync.allowlist_url') => Http::response($allowlist),
+        ]);
+
+        $this->artisan('disposable-email:update')->assertExitCode(0);
+
+        $validator = new DisposableEmailValidator();
+
+        $this->assertTrue($validator->isDisposable('user@0-mail.com'));
+        $this->assertFalse($validator->isDisposable('user@fastmail.com'));
+    }
+
+    public function test_it_can_overwrite_existing_synced_files_on_subsequent_runs(): void
+    {
+        Http::fake([
+            config('disposable-email.sync.blocklist_url') => Http::response("first-run-block.test\nsecond-run-block.test\n"),
+            config('disposable-email.sync.allowlist_url') => Http::response("first-run-allow.test\nsecond-run-allow.test\n"),
+        ]);
+
+        $this->artisan('disposable-email:update')->assertExitCode(0);
+        $this->artisan('disposable-email:update')->assertExitCode(0);
+
+        $validator = new DisposableEmailValidator();
+
+        $this->assertTrue($validator->isDisposable('user@first-run-block.test'));
+        $this->assertFalse($validator->isDisposable('user@first-run-allow.test'));
     }
 }

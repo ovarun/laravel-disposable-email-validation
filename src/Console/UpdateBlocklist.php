@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Throwable;
 
 class UpdateBlocklist extends Command
@@ -53,7 +54,13 @@ class UpdateBlocklist extends Command
             return false;
         }
 
-        $this->writeAtomically($type, $domains);
+        try {
+            $this->writeAtomically($type, $domains);
+        } catch (Throwable $e) {
+            $this->error("Failed to store {$type}: {$e->getMessage()}");
+
+            return false;
+        }
 
         $this->info(ucfirst($type).' updated with '.count($domains).' domains.');
 
@@ -101,8 +108,22 @@ class UpdateBlocklist extends Command
         $tempPath = "{$directory}/.{$type}-".uniqid('', true).'.tmp';
 
         $disk->makeDirectory($directory);
-        $disk->put($tempPath, json_encode($domains, JSON_PRETTY_PRINT));
 
-        rename($disk->path($tempPath), $disk->path($path));
+        $json = json_encode($domains, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        $disk->put($tempPath, $json.PHP_EOL);
+
+        $tempAbsolutePath = $disk->path($tempPath);
+        $targetAbsolutePath = $disk->path($path);
+
+        // On Windows, rename() cannot replace an existing file.
+        if (PHP_OS_FAMILY === 'Windows' && is_file($targetAbsolutePath) && ! unlink($targetAbsolutePath)) {
+            throw new RuntimeException("Unable to replace existing {$type} file.");
+        }
+
+        if (! rename($tempAbsolutePath, $targetAbsolutePath)) {
+            $disk->delete($tempPath);
+
+            throw new RuntimeException("Unable to move temp {$type} file into place.");
+        }
     }
 }

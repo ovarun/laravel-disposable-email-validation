@@ -39,8 +39,9 @@ return [
     */
 
     'sync' => [
-        'blocklist_url' => 'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf',
-        'allowlist_url' => 'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/allowlist.conf',
+        // List taken from : https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf
+        'blocklist_url' => 'https://raw.githubusercontent.com/ovarun/laravel-disposable-email-validation/main/disposable_email_blocklist.conf',
+        'allowlist_url' => 'https://raw.githubusercontent.com/ovarun/laravel-disposable-email-validation/main/allowlist.conf',
         'timeout' => 10,
         'minimum_entries' => 100,
         'disk' => 'local',

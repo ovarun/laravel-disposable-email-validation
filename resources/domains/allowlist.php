@@ -186,5 +186,4 @@ return [
     'yahoo.com.vn',
     'yeah.net',
     'yepmail.net',
-    'your-mail.com',
 ];
