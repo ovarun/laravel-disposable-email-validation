@@ -1,4 +1,8 @@
-# Laravel Disposable Email Validator
+<p align="center">
+    <img src="repo_banner_Jul-5-2026-02_42_21_AM.png" alt="Laravel Disposable Email Validator banner" />
+</p>
+
+# <img src="repo-logo-squr.png" alt="Laravel Disposable Email Validator logo" width="36" /> Laravel Disposable Email Validator
 
 A Laravel package to **detect and block disposable email addresses**, seeded from the [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) project.
 Supports a **blocklist** and an **allowlist**, with an Artisan command to sync both from upstream.
