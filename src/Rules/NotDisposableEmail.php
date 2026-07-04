@@ -2,18 +2,29 @@
 
 namespace Ovarun\DisposableEmail\Rules;
 
-use Illuminate\Contracts\Validation\Rule;
+use Closure;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Ovarun\DisposableEmail\DisposableEmailValidator;
 
-class NotDisposableEmail implements Rule
+class NotDisposableEmail implements ValidationRule
 {
-    public function passes($attribute, $value)
+    protected DisposableEmailValidator $validator;
+
+    public function __construct(?DisposableEmailValidator $validator = null)
     {
-        return !(new DisposableEmailValidator())->isDisposable($value);
+        $this->validator = $validator ?? app(DisposableEmailValidator::class);
     }
 
-    public function message()
+    public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        return 'Disposable or blocked email addresses are not allowed.';
+        if (! is_string($value)) {
+            $fail('The :attribute must be a valid email address.');
+
+            return;
+        }
+
+        if ($this->validator->isDisposable($value)) {
+            $fail('Disposable or blocked email addresses are not allowed.');
+        }
     }
 }

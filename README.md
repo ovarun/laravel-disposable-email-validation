@@ -1,74 +1,81 @@
 # Laravel Disposable Email Validator
 
-A Laravel package to **detect and block disposable email addresses** using the [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) list.  
-Supports **blocklist** (domains to block) and **allowlist** (domains to allow), with auto-sync from GitHub.  
+A Laravel package to **detect and block disposable email addresses**, seeded from the [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) project.
+Supports a **blocklist** and an **allowlist**, with an Artisan command to sync both from upstream.
+
+> **Requires Laravel 12+ and PHP 8.2+.** For older Laravel versions, use `^1.0` of this package.
 
 ---
 
 ## 📦 Installation
 
-Install via Composer:
-
 ```bash
-composer require ovarun/laravel-disposable-email
+composer require ovarun/laravel-disposable-email-validation
 ```
 
-The package uses **Laravel Package Auto-Discovery**, so you don’t need to register the service provider manually.
+The package uses **Laravel Package Auto-Discovery**, so you don't need to register the service provider manually.
 
 ---
 
 ## ⚙️ Configuration
 
-Publish the config file:
+Publish the config file (optional — sensible defaults are used otherwise):
 
 ```bash
 php artisan vendor:publish --tag=config
 ```
 
-This will create `config/disposable-email.php`:
+This creates `config/disposable-email.php`:
 
 ```php
 <?php
 
 return [
 
-    'blocklist' => [
-        'mailinator.com',
-        '10minutemail.com',
-        'guerrillamail.com',
-    ],
+    // Extra domains to block, on top of the bundled + synced lists.
+    'blocklist' => [],
 
-    'allowlist' => [
-        'gmail.com',
-        'yahoo.com',
-        'hotmail.com',
-        'outlook.com',
+    // Domains that are always allowed, even if blocked elsewhere. Wins over blocklist.
+    'allowlist' => [],
+
+    'sync' => [
+        'blocklist_url' => 'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf',
+        'allowlist_url' => 'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/allowlist.conf',
+        'timeout' => 10,
+        'minimum_entries' => 100,
+        'disk' => 'local',
     ],
 
 ];
 ```
 
-- **Blocklist** → Domains that should be blocked.  
-- **Allowlist** → Domains that are explicitly allowed, even if normally considered disposable.  
+The package ships with a bundled snapshot of the upstream blocklist/allowlist (several thousand domains), so it works out of the box with **no configuration and no network access required**. The `blocklist`/`allowlist` config keys are only for your own custom additions.
 
 ---
 
-## 🔄 Updating Blocklist
+## 🔄 Updating the Lists
 
-This package includes an Artisan command to **sync the latest blocklist** from GitHub:
+Sync the latest blocklist and allowlist from upstream:
 
 ```bash
 php artisan disposable-email:update
 ```
 
-The synced list is stored at:
+This fetches both lists over HTTP, validates that the response looks like a real domain list (rejecting anything with fewer than `sync.minimum_entries` valid-looking domains, to avoid corrupting your data with a bad response), and writes them atomically to:
 
 ```
-storage/app/disposable-email-blocklist.json
+storage/app/disposable-email/blocklist.json
+storage/app/disposable-email/allowlist.json
 ```
 
-✅ Synced domains + your custom `config('disposable-email.blocklist')` will be merged together.  
-✅ `allowlist` always takes priority over blocklist.  
+These synced files are merged with the bundled defaults and your custom config entries every time the validator runs. **Allowlist always wins.**
+
+### Optional: schedule it
+
+```php
+// routes/console.php or app/Console/Kernel.php
+Schedule::command('disposable-email:update')->weekly();
+```
 
 ---
 
@@ -76,91 +83,47 @@ storage/app/disposable-email-blocklist.json
 
 ### Validation Rule
 
-Use the built-in rule in your `FormRequest` or controller:
-
 ```php
 use Ovarun\DisposableEmail\Rules\NotDisposableEmail;
 
 $request->validate([
-    'email' => ['required', 'email', new NotDisposableEmail],
+    'email' => ['required', 'email', new NotDisposableEmail()],
 ]);
 ```
 
-If the email domain is blocked, the validation will fail with:
+If the email domain is blocked, validation fails with:
 
 ```
 Disposable or blocked email addresses are not allowed.
 ```
 
----
-
 ### Standalone Check
-
-You can also use the validator class directly:
 
 ```php
 use Ovarun\DisposableEmail\DisposableEmailValidator;
 
-$validator = new DisposableEmailValidator();
+$validator = app(DisposableEmailValidator::class);
 
 if ($validator->isDisposable('test@mailinator.com')) {
     // Handle blocked email
 }
 ```
 
----
-
-## ⏱ Optional: Scheduler
-
-To keep your blocklist always up-to-date, schedule the update command in `app/Console/Kernel.php`:
-
-```php
-protected function schedule(Schedule $schedule)
-{
-    $schedule->command('disposable-email:update')->weekly();
-}
-```
+`DisposableEmailValidator` is registered as a container singleton, so the (potentially large) merged domain list is only built once per request/worker instead of on every validation call — resolve it via the container rather than `new`-ing it directly where possible.
 
 ---
 
-## 📝 Example Workflow
+## ⚡ What changed in v2
 
-1. Install package:
-   ```bash
-   composer require ovarun/laravel-disposable-email
-   ```
-
-2. Publish config (optional):
-   ```bash
-   php artisan vendor:publish --tag=config
-   ```
-
-3. Update blocklist:
-   ```bash
-   php artisan disposable-email:update
-   ```
-
-4. Use rule in validation:
-   ```php
-   'email' => ['required', 'email', new NotDisposableEmail],
-   ```
-
----
-
-## ⚡ Features
-
-- ✅ Auto-discovers in Laravel (no manual provider setup)  
-- ✅ Configurable `blocklist` and `allowlist`  
-- ✅ Artisan command to sync latest domains from GitHub  
-- ✅ Validation rule for easy integration  
-- ✅ Standalone class for custom usage  
+- Fixed the sync command: it now correctly pulls plain-text domain lists from the real upstream repository (previously it fetched this package's own `.php` config file as JSON, which silently failed).
+- `DisposableEmailValidator` is bound as a container singleton and uses O(1) hash-map lookups instead of scanning the list linearly on every call.
+- The bundled domain lists moved out of `config/disposable-email.php` into `resources/domains/`, so `php artisan config:cache` no longer has to load thousands of domain strings into the config cache on every request.
+- `NotDisposableEmail` now implements Laravel's `Illuminate\Contracts\Validation\ValidationRule` and safely rejects non-string input instead of throwing.
+- The update command validates and atomically writes synced lists, with a request timeout and a sanity check against truncated/empty responses.
+- Dropped support for Laravel < 12 and PHP < 8.2.
 
 ---
 
 ## 📄 License
 
-MIT License.  
-
----
-
-🔥 Ready to keep disposable emails out of your app!
+MIT License.
